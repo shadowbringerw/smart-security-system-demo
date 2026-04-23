@@ -43,6 +43,8 @@ class VideoPipeline:
         self.current_track_count = 0
         self.last_frame_shape = None
         self.started_at = time.time()
+        self.error_message = ""
+        self.stream_status = "idle"
         self.track_points: Dict[int, Deque[Tuple[int, int]]] = defaultdict(lambda: deque(maxlen=cfg.draw_trails_len))
 
     def start(self):
@@ -54,6 +56,7 @@ class VideoPipeline:
 
     def stop(self):
         self._stop.set()
+        self.stream_status = "stopped"
         if self._thread:
             self._thread.join(timeout=2.0)
 
@@ -127,12 +130,21 @@ class VideoPipeline:
     def _loop(self):
         cap = cv2.VideoCapture(0 if self.source == "0" else self.source)
         if not cap.isOpened():
-            raise RuntimeError(f"Cannot open source: {self.source}")
+            self.error_message = f"Cannot open source: {self.source}"
+            self.stream_status = "error"
+            return
 
+        self.stream_status = "running"
         prev = time.time()
         while not self._stop.is_set():
             ok, frame = cap.read()
             if not ok:
+                if self.source != "0":
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    time.sleep(0.03)
+                    continue
+                self.error_message = "Failed to read frame from camera source"
+                self.stream_status = "error"
                 break
 
             t0 = time.time()
@@ -167,10 +179,15 @@ class VideoPipeline:
             self.last_proc_ms = (now - t0) * 1000
 
         cap.release()
+        if self.stream_status != "error":
+            self.stream_status = "stopped"
 
     def get_frame_jpeg(self):
         with self._lock:
             return self._latest_jpeg
+
+    def has_failed(self) -> bool:
+        return self.stream_status == "error"
 
     def get_stats(self):
         height, width = self.last_frame_shape or (0, 0)
@@ -186,6 +203,8 @@ class VideoPipeline:
             "frame_width": width,
             "frame_height": height,
             "last_alert_ts_ms": self.last_alert_ts_ms,
+            "stream_status": self.stream_status,
+            "error_message": self.error_message,
             "fence_polygon": self.cfg.fence_polygon,
             "rules": {
                 "run_speed_threshold": self.rules.run_speed_threshold,

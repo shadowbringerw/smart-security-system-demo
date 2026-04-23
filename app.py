@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import time
 from typing import List, Tuple
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -38,6 +39,10 @@ def create_app(source: str):
             while True:
                 frame = pipeline.get_frame_jpeg()
                 if frame is None:
+                    if pipeline.has_failed():
+                        time.sleep(0.2)
+                    else:
+                        time.sleep(0.03)
                     continue
                 yield (
                     b"--frame\r\n"
@@ -48,7 +53,11 @@ def create_app(source: str):
 
     @app.route("/api/alerts")
     def api_alerts():
-        limit = int(request.args.get("limit", 100))
+        try:
+            limit = int(request.args.get("limit", 100))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "limit must be an integer"}), 400
+        limit = max(1, min(limit, 500))
         event_type = request.args.get("type")
         rows = pipeline.store.list_events(limit=limit, event_type=event_type)
         return jsonify({"items": rows, "count": len(rows)})

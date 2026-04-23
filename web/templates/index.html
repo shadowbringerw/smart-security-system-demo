@@ -23,7 +23,7 @@
     </div>
   </div>
   <div class="hero-side">
-    <div class="section-mini">Monitor Scene</div>
+    <div class="section-mini">监控场景</div>
     <p style="margin-top:8px;">推荐演示顺序：打开实时视频流，展示围栏区域与轨迹叠加，再切到告警中心查看记录，最后进入统计看板说明系统整体运行情况。</p>
   </div>
 </section>
@@ -32,7 +32,7 @@
   <section class="panel">
     <div class="panel-head">
       <div>
-        <div class="section-mini">Live View</div>
+        <div class="section-mini">实时画面</div>
         <h2>实时监控画面</h2>
       </div>
       <div class="muted">单路视频流 / 实时推理 / 告警叠加</div>
@@ -42,7 +42,7 @@
         <div class="video-overlay">
           <div class="video-overlay-card">
             <div class="overlay-label">运行模式</div>
-            <div class="overlay-value">LIVE</div>
+            <div class="overlay-value">在线监控</div>
           </div>
           <div class="video-overlay-card">
             <div class="overlay-label">监控状态</div>
@@ -59,7 +59,7 @@
     <div class="panel">
       <div class="panel-head">
         <div>
-          <div class="section-mini">Runtime</div>
+          <div class="section-mini">运行状态</div>
           <h3>系统状态</h3>
         </div>
         <div class="muted" id="uptimeText">加载中</div>
@@ -72,7 +72,7 @@
     <div class="panel">
       <div class="panel-head">
         <div>
-          <div class="section-mini">Recent Events</div>
+          <div class="section-mini">最新事件</div>
           <h3>最新告警</h3>
         </div>
         <div class="muted">最近 6 条</div>
@@ -85,7 +85,7 @@
     <div class="panel">
       <div class="panel-head">
         <div>
-          <div class="section-mini">Control Panel</div>
+          <div class="section-mini">控制面板</div>
           <h3>围栏与规则配置</h3>
         </div>
         <div class="muted">在线修改，立即生效</div>
@@ -140,9 +140,10 @@
       `视频源：${stats.source}`,
       `检测后端：${stats.detector_backend}`,
       `跟踪后端：${stats.tracker_backend}`,
+      `流状态：${stats.stream_status}`,
       `最后告警：${formatTime(stats.last_alert_ts_ms)}`
     ].map(text => `<span class="badge">${text}</span>`).join("");
-    document.getElementById("overlayTracks").innerText = `${stats.track_count} tracks`;
+    document.getElementById("overlayTracks").innerText = `${stats.track_count} 个目标`;
     document.getElementById("heroMetrics").innerHTML = [
       { value: stats.fps, label: 'FPS' },
       { value: stats.track_count, label: '活动轨迹' },
@@ -169,10 +170,10 @@
       <div class="alert-item">
         <div class="alert-top">
           ${renderEventTag(item.event_type)}
-          <span class="muted">Track ${item.track_id}</span>
+          <span class="muted">Track ${escapeHtml(item.track_id)}</span>
         </div>
-        <div>${item.message}</div>
-        <div class="muted">frame ${item.frame_index} · ${item.created_at}</div>
+        <div>${escapeHtml(item.message)}</div>
+        <div class="muted">frame ${escapeHtml(item.frame_index)} · ${escapeHtml(item.created_at)}</div>
       </div>
     `).join("");
   }
@@ -186,6 +187,9 @@
       ]);
       renderMetrics(stats, summary);
       renderRecentAlerts(alerts.items || []);
+      if (stats.error_message) {
+        document.getElementById("formMsg").innerText = `视频流异常: ${stats.error_message}`;
+      }
     } catch (err) {
       document.getElementById("formMsg").innerText = `加载失败: ${err.message}`;
     }
@@ -208,9 +212,17 @@
 
   async function saveRules() {
     try {
+      const runSpeed = Number(document.getElementById("runSpeedInput").value);
+      const gatherCount = Number(document.getElementById("gatherCountInput").value);
+      if (!Number.isFinite(runSpeed) || runSpeed <= 0) {
+        throw new Error("奔跑阈值必须为正数");
+      }
+      if (!Number.isFinite(gatherCount) || gatherCount < 1) {
+        throw new Error("聚集人数阈值必须大于等于 1");
+      }
       const payload = {
-        run_speed_threshold: Number(document.getElementById("runSpeedInput").value),
-        gather_min_count: Number(document.getElementById("gatherCountInput").value),
+        run_speed_threshold: runSpeed,
+        gather_min_count: gatherCount,
       };
       await fetchJson('/api/rules', {
         method: 'POST',

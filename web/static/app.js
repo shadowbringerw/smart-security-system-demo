@@ -4,7 +4,7 @@ function formatEventType(type) {
 
 function renderEventTag(type) {
   const cls = formatEventType(type);
-  return `<span class="event-tag ${cls}">${type || "-"}</span>`;
+  return `<span class="event-tag ${cls}">${escapeHtml(type || "-")}</span>`;
 }
 
 function formatTime(tsMs) {
@@ -30,4 +30,13 @@ async function fetchJson(url, options) {
     throw new Error(`${resp.status} ${resp.statusText}`);
   }
   return await resp.json();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

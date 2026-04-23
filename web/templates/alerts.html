@@ -9,7 +9,7 @@
     <p>这一页用于展示告警记录、事件类型、时间信息和说明字段。适合在答辩时说明系统如何从实时监控页跳转到告警结果复核。</p>
   </div>
   <div class="hero-side">
-    <div class="section-mini">Alert Review</div>
+    <div class="section-mini">告警复核</div>
     <p style="margin-top:8px;">推荐先按类型过滤，再展示最近告警记录与事件说明，形成“检测到告警再到结果查询”的闭环。</p>
   </div>
 </section>
@@ -19,10 +19,10 @@
 <section class="split-pane" style="margin-top: 14px;">
   <div class="panel filter-card">
     <div class="panel-head" style="padding-left:0;padding-right:0;">
-      <div>
-        <div class="section-mini">Filter</div>
-        <h3>筛选面板</h3>
-      </div>
+        <div>
+          <div class="section-mini">筛选条件</div>
+          <h3>筛选面板</h3>
+        </div>
     </div>
     <div class="filter-block">
       <div class="form-grid">
@@ -43,10 +43,10 @@
     </div>
 
     <div class="panel-head" style="padding-left:0;padding-right:0;padding-top:16px;">
-      <div>
-        <div class="section-mini">Legend</div>
-        <h3>事件说明</h3>
-      </div>
+        <div>
+          <div class="section-mini">说明图例</div>
+          <h3>事件说明</h3>
+        </div>
     </div>
     <div class="filter-block legend">
       <div class="legend-item"><span class="event-tag intrusion">intrusion</span><span class="soft">围栏入侵</span></div>
@@ -58,7 +58,7 @@
   <section class="panel">
     <div class="panel-head">
       <div>
-        <div class="section-mini">Alert Table</div>
+        <div class="section-mini">告警表格</div>
         <h2>告警列表</h2>
       </div>
       <div class="muted">支持按类型过滤，适合答辩演示与结果复核</div>
@@ -92,10 +92,10 @@
     const data = await fetchJson('/api/alerts/summary');
     const byType = data.by_type || {};
     const items = [
-      { kicker: 'Total Events', number: data.total_events || 0, caption: `最新 ID ${data.latest_event_id || 0}` },
-      { kicker: 'Intrusion', number: byType.intrusion || 0, caption: '围栏入侵告警' },
-      { kicker: 'Running', number: byType.running || 0, caption: '奔跑类告警' },
-      { kicker: 'Gathering', number: byType.gathering || 0, caption: '聚集类告警' },
+      { kicker: '累计事件', number: data.total_events || 0, caption: `最新 ID ${data.latest_event_id || 0}` },
+      { kicker: '围栏入侵', number: byType.intrusion || 0, caption: '围栏入侵告警' },
+      { kicker: '奔跑事件', number: byType.running || 0, caption: '奔跑类告警' },
+      { kicker: '聚集事件', number: byType.gathering || 0, caption: '聚集类告警' },
     ];
     document.getElementById('alertsSummaryStrip').innerHTML = items.map(item => `
       <div class="summary-card">
@@ -117,14 +117,14 @@
     }
     tbody.innerHTML = data.items.map(item => `
       <tr>
-        <td>${item.id}</td>
+        <td>${escapeHtml(item.id)}</td>
         <td>${renderEventTag(item.event_type)}</td>
-        <td>${item.track_id}</td>
+        <td>${escapeHtml(item.track_id)}</td>
         <td>${Number(item.score).toFixed(3)}</td>
-        <td>${item.message}</td>
-        <td>${item.frame_index}</td>
-        <td>${item.ts_ms}</td>
-        <td>${item.created_at}</td>
+        <td>${escapeHtml(item.message)}</td>
+        <td>${escapeHtml(item.frame_index)}</td>
+        <td>${escapeHtml(item.ts_ms)}</td>
+        <td>${escapeHtml(item.created_at)}</td>
       </tr>
     `).join("");
   }
