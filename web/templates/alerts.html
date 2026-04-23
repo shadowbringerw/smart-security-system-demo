@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}告警中心 | 校园智能安防系统{% endblock %}
+
+{% block content %}
+<section class="hero-band">
+  <div class="hero-card">
+    <h2>告警检索与结果复核</h2>
+    <p>这一页用于展示告警记录、事件类型、时间信息和说明字段。适合在答辩时说明系统如何从实时监控页跳转到告警结果复核。</p>
+  </div>
+  <div class="hero-side">
+    <div class="section-mini">Alert Review</div>
+    <p style="margin-top:8px;">推荐先按类型过滤，再展示最近告警记录与事件说明，形成“检测到告警再到结果查询”的闭环。</p>
+  </div>
+</section>
+
+<div class="summary-strip" id="alertsSummaryStrip"></div>
+
+<section class="split-pane" style="margin-top: 14px;">
+  <div class="panel filter-card">
+    <div class="panel-head" style="padding-left:0;padding-right:0;">
+      <div>
+        <div class="section-mini">Filter</div>
+        <h3>筛选面板</h3>
+      </div>
+    </div>
+    <div class="filter-block">
+      <div class="form-grid">
+        <div class="field">
+          <label>告警类型</label>
+          <select id="eventType">
+            <option value="">全部类型</option>
+            <option value="intrusion">intrusion</option>
+            <option value="running">running</option>
+            <option value="gathering">gathering</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button onclick="loadAlerts()">查询告警</button>
+          <button class="secondary" onclick="document.getElementById('eventType').value='';loadAlerts();">重置条件</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-head" style="padding-left:0;padding-right:0;padding-top:16px;">
+      <div>
+        <div class="section-mini">Legend</div>
+        <h3>事件说明</h3>
+      </div>
+    </div>
+    <div class="filter-block legend">
+      <div class="legend-item"><span class="event-tag intrusion">intrusion</span><span class="soft">围栏入侵</span></div>
+      <div class="legend-item"><span class="event-tag running">running</span><span class="soft">快速移动</span></div>
+      <div class="legend-item"><span class="event-tag gathering">gathering</span><span class="soft">人群聚集</span></div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="section-mini">Alert Table</div>
+        <h2>告警列表</h2>
+      </div>
+      <div class="muted">支持按类型过滤，适合答辩演示与结果复核</div>
+    </div>
+    <div class="panel-body">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>类型</th>
+              <th>Track</th>
+              <th>分数</th>
+              <th>说明</th>
+              <th>帧号</th>
+              <th>时间戳</th>
+              <th>创建时间</th>
+            </tr>
+          </thead>
+          <tbody id="alertsTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function loadSummary() {
+    const data = await fetchJson('/api/alerts/summary');
+    const byType = data.by_type || {};
+    const items = [
+      { kicker: 'Total Events', number: data.total_events || 0, caption: `最新 ID ${data.latest_event_id || 0}` },
+      { kicker: 'Intrusion', number: byType.intrusion || 0, caption: '围栏入侵告警' },
+      { kicker: 'Running', number: byType.running || 0, caption: '奔跑类告警' },
+      { kicker: 'Gathering', number: byType.gathering || 0, caption: '聚集类告警' },
+    ];
+    document.getElementById('alertsSummaryStrip').innerHTML = items.map(item => `
+      <div class="summary-card">
+        <div class="kicker">${item.kicker}</div>
+        <div class="number">${item.number}</div>
+        <div class="caption">${item.caption}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAlerts() {
+    const eventType = document.getElementById("eventType").value;
+    const query = eventType ? `?type=${encodeURIComponent(eventType)}&limit=300` : '?limit=300';
+    const data = await fetchJson(`/api/alerts${query}`);
+    const tbody = document.getElementById("alertsTable");
+    if (!data.items.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="muted">暂无告警数据</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.items.map(item => `
+      <tr>
+        <td>${item.id}</td>
+        <td>${renderEventTag(item.event_type)}</td>
+        <td>${item.track_id}</td>
+        <td>${Number(item.score).toFixed(3)}</td>
+        <td>${item.message}</td>
+        <td>${item.frame_index}</td>
+        <td>${item.ts_ms}</td>
+        <td>${item.created_at}</td>
+      </tr>
+    `).join("");
+  }
+
+  loadSummary();
+  loadAlerts();
+  setInterval(loadSummary, 5000);
+  setInterval(loadAlerts, 3000);
+</script>
+{% endblock %}

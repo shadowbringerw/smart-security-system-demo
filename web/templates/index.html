@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}实时监控 | 校园智能安防系统{% endblock %}
+
+{% block content %}
+<section class="hero-band">
+  <div class="hero-card">
+    <h2>实时监控主控台</h2>
+    <p>当前页面用于展示实时视频流、检测叠加结果、运行状态和最新告警。适合在答辩时直接演示摄像头或本地视频输入后的完整处理链路。</p>
+    <div class="hero-metrics" id="heroMetrics">
+      <div class="hero-metric">
+        <div class="value">--</div>
+        <div class="label">FPS</div>
+      </div>
+      <div class="hero-metric">
+        <div class="value">--</div>
+        <div class="label">活动轨迹</div>
+      </div>
+      <div class="hero-metric">
+        <div class="value">--</div>
+        <div class="label">累计告警</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-side">
+    <div class="section-mini">Monitor Scene</div>
+    <p style="margin-top:8px;">推荐演示顺序：打开实时视频流，展示围栏区域与轨迹叠加，再切到告警中心查看记录，最后进入统计看板说明系统整体运行情况。</p>
+  </div>
+</section>
+
+<div class="grid monitor">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="section-mini">Live View</div>
+        <h2>实时监控画面</h2>
+      </div>
+      <div class="muted">单路视频流 / 实时推理 / 告警叠加</div>
+    </div>
+    <div class="video-frame">
+      <div class="video-stage">
+        <div class="video-overlay">
+          <div class="video-overlay-card">
+            <div class="overlay-label">运行模式</div>
+            <div class="overlay-value">LIVE</div>
+          </div>
+          <div class="video-overlay-card">
+            <div class="overlay-label">监控状态</div>
+            <div class="overlay-value" id="overlayTracks">--</div>
+          </div>
+        </div>
+        <img src="/video_feed" alt="video feed" />
+      </div>
+    </div>
+    <div class="hud" id="hud"></div>
+  </section>
+
+  <section class="stack">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="section-mini">Runtime</div>
+          <h3>系统状态</h3>
+        </div>
+        <div class="muted" id="uptimeText">加载中</div>
+      </div>
+      <div class="panel-body">
+        <div class="metric-grid" id="metricGrid"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="section-mini">Recent Events</div>
+          <h3>最新告警</h3>
+        </div>
+        <div class="muted">最近 6 条</div>
+      </div>
+      <div class="panel-body">
+        <div class="alert-list" id="recentAlerts"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="section-mini">Control Panel</div>
+          <h3>围栏与规则配置</h3>
+        </div>
+        <div class="muted">在线修改，立即生效</div>
+      </div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>围栏多边形 JSON</label>
+            <textarea id="fenceInput" rows="5">[[120,100],[520,100],[520,380],[120,380]]</textarea>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label>奔跑阈值（px/s）</label>
+              <input id="runSpeedInput" type="number" step="1" />
+            </div>
+            <div class="field">
+              <label>聚集人数阈值</label>
+              <input id="gatherCountInput" type="number" step="1" />
+            </div>
+          </div>
+          <div class="actions">
+            <button onclick="saveFence()">保存围栏</button>
+            <button onclick="saveRules()">保存规则</button>
+            <button class="secondary" onclick="refreshMonitor()">刷新状态</button>
+          </div>
+          <div class="muted" id="formMsg"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function renderMetrics(stats, summary) {
+    const rows = [
+      { label: "当前帧", value: stats.frame_index, sub: `源 ${stats.source}` },
+      { label: "FPS", value: stats.fps, sub: `处理耗时 ${stats.proc_ms} ms` },
+      { label: "轨迹数", value: stats.track_count, sub: `${stats.detector_backend} / ${stats.tracker_backend}` },
+      { label: "分辨率", value: `${stats.frame_width}×${stats.frame_height}`, sub: `在线 ${secondsToText(stats.uptime_s)}` },
+    ];
+    document.getElementById("metricGrid").innerHTML = rows.map(item => `
+      <div class="metric">
+        <span class="label">${item.label}</span>
+        <div class="value">${item.value}</div>
+        <div class="sub">${item.sub}</div>
+      </div>
+    `).join("");
+    document.getElementById("uptimeText").innerText = `已运行 ${secondsToText(stats.uptime_s)}`;
+    document.getElementById("hud").innerHTML = [
+      `视频源：${stats.source}`,
+      `检测后端：${stats.detector_backend}`,
+      `跟踪后端：${stats.tracker_backend}`,
+      `最后告警：${formatTime(stats.last_alert_ts_ms)}`
+    ].map(text => `<span class="badge">${text}</span>`).join("");
+    document.getElementById("overlayTracks").innerText = `${stats.track_count} tracks`;
+    document.getElementById("heroMetrics").innerHTML = [
+      { value: stats.fps, label: 'FPS' },
+      { value: stats.track_count, label: '活动轨迹' },
+      { value: (summary && summary.total_events) || 0, label: '累计告警' }
+    ].map(item => `
+      <div class="hero-metric">
+        <div class="value">${item.value}</div>
+        <div class="label">${item.label}</div>
+      </div>
+    `).join("");
+    if (stats.rules) {
+      document.getElementById("runSpeedInput").value = stats.rules.run_speed_threshold;
+      document.getElementById("gatherCountInput").value = stats.rules.gather_min_count;
+    }
+  }
+
+  function renderRecentAlerts(items) {
+    const box = document.getElementById("recentAlerts");
+    if (!items.length) {
+      box.innerHTML = `<div class="muted">暂无告警记录</div>`;
+      return;
+    }
+    box.innerHTML = items.map(item => `
+      <div class="alert-item">
+        <div class="alert-top">
+          ${renderEventTag(item.event_type)}
+          <span class="muted">Track ${item.track_id}</span>
+        </div>
+        <div>${item.message}</div>
+        <div class="muted">frame ${item.frame_index} · ${item.created_at}</div>
+      </div>
+    `).join("");
+  }
+
+  async function refreshMonitor() {
+    try {
+      const [stats, alerts, summary] = await Promise.all([
+        fetchJson('/api/stats'),
+        fetchJson('/api/alerts?limit=6'),
+        fetchJson('/api/alerts/summary')
+      ]);
+      renderMetrics(stats, summary);
+      renderRecentAlerts(alerts.items || []);
+    } catch (err) {
+      document.getElementById("formMsg").innerText = `加载失败: ${err.message}`;
+    }
+  }
+
+  async function saveFence() {
+    try {
+      const polygon = JSON.parse(document.getElementById("fenceInput").value);
+      const resp = await fetchJson('/api/fence', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ polygon })
+      });
+      document.getElementById("formMsg").innerText = `围栏已更新: ${JSON.stringify(resp.polygon)}`;
+      refreshMonitor();
+    } catch (err) {
+      document.getElementById("formMsg").innerText = `围栏更新失败: ${err.message}`;
+    }
+  }
+
+  async function saveRules() {
+    try {
+      const payload = {
+        run_speed_threshold: Number(document.getElementById("runSpeedInput").value),
+        gather_min_count: Number(document.getElementById("gatherCountInput").value),
+      };
+      await fetchJson('/api/rules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      document.getElementById("formMsg").innerText = "规则参数已更新";
+      refreshMonitor();
+    } catch (err) {
+      document.getElementById("formMsg").innerText = `规则更新失败: ${err.message}`;
+    }
+  }
+
+  refreshMonitor();
+  setInterval(refreshMonitor, 2000);
+</script>
+{% endblock %}

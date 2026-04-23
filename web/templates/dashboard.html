@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}统计看板 | 校园智能安防系统{% endblock %}
+
+{% block content %}
+<section class="hero-band">
+  <div class="hero-card">
+    <h2>统计看板与运行概览</h2>
+    <p>该页面用于展示累计告警数量、当前运行状态、告警类型占比和最近时间趋势，适合在答辩时说明系统不仅能检测，还能完成运行监控与结果汇总。</p>
+  </div>
+  <div class="hero-side">
+    <div class="section-mini">Dashboard</div>
+    <p style="margin-top:8px;">如果要录屏，建议把这一页放在演示的最后，用来收束前面的实时监控和告警中心内容。</p>
+  </div>
+</section>
+
+<div class="cards-4" id="dashboardCards"></div>
+
+<div class="grid monitor" style="margin-top: 14px;">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="section-mini">Type Distribution</div>
+        <h2>告警类型占比</h2>
+      </div>
+      <div class="muted">数据库统计结果</div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-bar" id="typeBars"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="section-mini">Recent Trend</div>
+        <h2>最近时间段趋势</h2>
+      </div>
+      <div class="muted">最近 12 个时间桶</div>
+    </div>
+    <div class="panel-body">
+      <div class="timeline" id="trendList"></div>
+    </div>
+  </section>
+</div>
+
+<section class="panel" style="margin-top: 14px;">
+  <div class="panel-head">
+    <div>
+      <div class="section-mini">Latest Events</div>
+      <h2>最新告警摘要</h2>
+    </div>
+    <div class="muted">最近 8 条</div>
+  </div>
+  <div class="panel-body">
+    <div class="alert-list" id="dashboardAlerts"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function renderCards(stats, summary) {
+    const cards = [
+      { label: "累计告警", value: summary.total_events || 0, sub: `最新 ID ${summary.latest_event_id || 0}` },
+      { label: "当前 FPS", value: stats.fps, sub: `处理耗时 ${stats.proc_ms} ms` },
+      { label: "活动轨迹", value: stats.track_count, sub: `${stats.detector_backend} / ${stats.tracker_backend}` },
+      { label: "运行时长", value: secondsToText(stats.uptime_s), sub: `最近告警 ${summary.latest_created_at || '-'}` },
+    ];
+    document.getElementById("dashboardCards").innerHTML = cards.map(item => `
+      <section class="panel">
+        <div class="panel-body">
+          <div class="metric">
+            <span class="label">${item.label}</span>
+            <div class="value">${item.value}</div>
+            <div class="sub">${item.sub}</div>
+          </div>
+        </div>
+      </section>
+    `).join("");
+  }
+
+  function renderTypeBars(byType) {
+    const entries = Object.entries(byType || {});
+    const max = Math.max(1, ...entries.map(([, count]) => count));
+    document.getElementById("typeBars").innerHTML = entries.length ? entries.map(([type, count]) => `
+      <div class="bar-row">
+        <div>${type}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(count / max) * 100}%"></div></div>
+        <div>${count}</div>
+      </div>
+    `).join("") : `<div class="muted">暂无统计数据</div>`;
+  }
+
+  function renderTrend(trend) {
+    document.getElementById("trendList").innerHTML = trend.length ? trend.map(item => `
+      <div class="timeline-item">
+        <div>${item.bucket}</div>
+        <div class="muted">告警数量 ${item.count}</div>
+      </div>
+    `).join("") : `<div class="muted">暂无趋势数据</div>`;
+  }
+
+  function renderDashboardAlerts(items) {
+    document.getElementById("dashboardAlerts").innerHTML = items.length ? items.map(item => `
+      <div class="alert-item">
+        <div class="alert-top">
+          ${renderEventTag(item.event_type)}
+          <span class="muted">${item.created_at}</span>
+        </div>
+        <div>${item.message}</div>
+        <div class="muted">Track ${item.track_id} · frame ${item.frame_index}</div>
+      </div>
+    `).join("") : `<div class="muted">暂无告警数据</div>`;
+  }
+
+  async function loadDashboard() {
+    const data = await fetchJson('/api/dashboard');
+    renderCards(data.stats || {}, data.summary || {});
+    renderTypeBars((data.summary || {}).by_type || {});
+    renderTrend((data.summary || {}).trend || []);
+    renderDashboardAlerts(data.recent_alerts || []);
+  }
+
+  loadDashboard();
+  setInterval(loadDashboard, 3000);
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}校园智能安防系统{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+</head>
+<body>
+  <div class="shell">
+    <div class="masthead">
+      <div class="eyebrow">Campus Security Console</div>
+      <div class="topbar">
+        <div class="title-wrap">
+          <h1>校园智能安防系统</h1>
+          <div class="subtitle">围绕实时监控、事件告警和运行状态展示构建的单摄像头安防演示系统，可用于摄像头接入展示、告警闭环演示与答辩录屏。</div>
+        </div>
+        <div class="header-meta">
+          <div class="status-chip">演示系统在线</div>
+          <div class="meta-strip">
+            <span class="meta-pill">Single Camera</span>
+            <span class="meta-pill">Flask + OpenCV</span>
+            <span class="meta-pill">YOLO + DeepSORT</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav">
+        <a href="/" class="{% if active == 'monitor' %}active{% endif %}">实时监控</a>
+        <a href="/alerts" class="{% if active == 'alerts' %}active{% endif %}">告警中心</a>
+        <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}">统计看板</a>
+      </div>
+    </div>
+
+    {% block content %}{% endblock %}
+    <div class="footer-note">Demo Web UI for smart security monitoring, built on Flask, OpenCV and SQLite.</div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
